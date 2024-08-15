@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@rive-app/canvas-advanced": "^2.19.7",
+    "@rive-app/react-canvas": "^4.13.7",
+    "@tanstack/react-query": "^4.29.14",
+    "axios": "^1.4.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },
