@@ -1,17 +1,19 @@
-import { EventType, useRive } from "@rive-app/react-canvas";
+import { EventType, useRive, Layout, Fit, Alignment } from "@rive-app/react-canvas";
+import { useLocation } from 'react-router-dom';
 import { useEffect, useState, useRef } from "react";
 import { useCreateRecord, useDeleteRecord, useUpdateRecord } from "../../hooks/queryClient";
-const backendRoutePrefix = 'http://localhost:5000';
+import axios from 'axios';
+const backendRoutePrefix = 'http://localhost:8000';
 const defaultInputPlaceHolder = 'EMAILADDRESS@DOMAIN.COM';
 const stateMachineName = 'MainSM';
+
 const handleRecordCreate = (pressedKeysRef, inputFocusedRef, createRecord, rive) => {
   let text = pressedKeysRef.current; // Use the ref value here
-  console.log('submit is clicked', inputFocusedRef.current, text);
+
   if (inputFocusedRef.current && text?.length) {
     rive.setTextRunValue("txtMailBtn", 'Saving...');
     createRecord({ apiRoute: `${backendRoutePrefix}/signup`, data: { email: text } })
       .then((resp) => {
-        console.log(resp, 'resp');
         rive.setTextRunValue("txtMailBtn", 'Submit');
         if (resp && resp?.status === 'email-found-and-not-verified') {
           const stateMachineInput = rive.stateMachineInputs(stateMachineName).find(input => input.name === "isExistAndNotVerified");
@@ -33,7 +35,7 @@ const handleRecordCreate = (pressedKeysRef, inputFocusedRef, createRecord, rive)
         }
       })
       .catch((err) => {
-        console.log(err?.message, 'error');
+
         rive.setTextRunValue("txtMailBtn", 'Submit');
         rive.setTextRunValue("txtMailMsg", err?.message);
       });
@@ -42,9 +44,7 @@ const handleRecordCreate = (pressedKeysRef, inputFocusedRef, createRecord, rive)
 
 const handleRemoveRecord = (pressedKeysRef, removeRecord, rive, verified) => {
   let text = pressedKeysRef.current;
-  console.log('text pressed', pressedKeysRef.current);
   if (text && text?.length) {
-    console.log('text', text);
     if (verified) {
       rive.setTextRunValue("btnYesSubmit", 'Removing...');
     } else {
@@ -52,7 +52,6 @@ const handleRemoveRecord = (pressedKeysRef, removeRecord, rive, verified) => {
     }
     removeRecord({ apiRoute: `${backendRoutePrefix}/remove-record/${text}`, data: { email: text } })
       .then((resp) => {
-        console.log(resp, 'resp');
         if (verified) {
           rive.setTextRunValue("btnYesSubmit", 'Yes');
         } else {
@@ -66,7 +65,6 @@ const handleRemoveRecord = (pressedKeysRef, removeRecord, rive, verified) => {
         }
       })
       .catch((err) => {
-        console.log(err?.message, 'error');
         if (verified) {
           rive.setTextRunValue("btnYesSubmit", 'Yes');
         } else {
@@ -83,7 +81,6 @@ const handleResend = (pressedKeysRef, updateRecord, rive) => {
     rive.setTextRunValue("btnResendSubmit", 'Resending...');
     updateRecord({ apiRoute: `${backendRoutePrefix}/resend-email/`, data: { email: text } })
       .then((resp) => {
-        console.log(resp, 'resp');
         rive.setTextRunValue("btnResendSubmit", 'Resend');
         const stateMachineInput = rive.stateMachineInputs(stateMachineName).find(input => input.name === "isExistAndNotVerified");
         if (stateMachineInput) {
@@ -93,7 +90,7 @@ const handleResend = (pressedKeysRef, updateRecord, rive) => {
         }
       })
       .catch((err) => {
-        console.log(err?.message, 'error');
+
         rive.setTextRunValue("btnResendSubmit", 'Resend');
         rive.setTextRunValue("txtMailMsg", err?.message);
       });
@@ -110,7 +107,10 @@ const handleCancel = (rive) => {
 }
 
 
+
 const RiveMailingList = () => {
+  const query = new URLSearchParams(useLocation().search);
+  const token = query.get('token');
 
   const inputFocusedRef = useRef(false); // Ref for input focused state
   const pressedKeysRef = useRef(''); // Ref for pressed keys state
@@ -124,6 +124,10 @@ const RiveMailingList = () => {
     src: 'mailing_list_signup_5.riv',
     stateMachines: stateMachineName,
     automaticallyHandleEvents: true,
+    layout: new Layout({
+      fit: Fit.Contain,
+      alignment: Alignment.Center,
+    }),
     autoplay: true,
   });
 
@@ -131,7 +135,6 @@ const RiveMailingList = () => {
     const eventData = riveEvent.data;
     switch (eventData.name) {
       case "txtFiedMouseDown":
-        console.log('input is clicked');
         inputFocusedRef.current = true;
         break;
       case "btnSubmitClick":
@@ -139,7 +142,6 @@ const RiveMailingList = () => {
         inputFocusedRef.current = false;
         break;
       case "btnRemoveSubmit":
-        console.log('remove button clicked');
         handleRemoveRecord(pressedKeysRef, removeRecord, rive, false);
         break;
       case "btnResendSubmit":
@@ -180,7 +182,6 @@ const RiveMailingList = () => {
   useEffect(() => {
     if (rive && inputFocusedRef.current) {
       pressedKeysRef.current = pressedKeys; // Keep the ref updated with the latest value of pressedKeys
-      console.log(pressedKeys, 'pressed', inputFocusedRef.current);
       requestAnimationFrame(() => {
         rive.setTextRunValue("txtMailInput", pressedKeys + '|');
       });
@@ -192,6 +193,21 @@ const RiveMailingList = () => {
       rive.on(EventType.RiveEvent, onRiveEventReceived);
     }
   }, [rive]);
+
+  useEffect(() => {
+    if (rive && token) {
+      axios.get(`${backendRoutePrefix}/verify-email?token=${token}`)
+        .then(response => {
+          
+          rive.setTextRunValue("txtMailMsg", response.data.message);
+
+        })
+        .catch(error => {
+          console.log(error);
+          rive.setTextRunValue("txtMailMsg", error.response.data.message);
+        });
+    }
+  }, [token, rive]);
 
   return <RiveComponent />;
 };
